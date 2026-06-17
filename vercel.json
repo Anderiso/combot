@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/transcribe/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/remix/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
