@@ -5,6 +5,12 @@
     },
     "src/app/api/remix/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/rewrite-script/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/split-hooks/route.ts": {
+      "maxDuration": 120
     }
   }
 }

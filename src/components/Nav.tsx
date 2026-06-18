@@ -2,6 +2,8 @@ import Link from "next/link";
 
 const links = [
   { href: "/", label: "Generate" },
+  { href: "/remix", label: "Remix" },
+  { href: "/work-orders", label: "Work orders" },
   { href: "/library", label: "Library" },
   { href: "/load", label: "Load" },
   { href: "/brand", label: "Brand" },
