@@ -4,6 +4,7 @@ export type WorkOrderItem = {
   id: string;
   script: string;
   videoFileName: string;
+  googleDriveLink: string;
   notes: string;
   hook1: string;
   hook2: string;
@@ -36,6 +37,7 @@ export function createWorkOrderItem(params: {
     id: createId(),
     script: params.script.trim(),
     videoFileName: params.videoFileName.trim() || "unknown-video.mp4",
+    googleDriveLink: "",
     notes: "",
     hook1: "",
     hook2: "",
@@ -74,6 +76,7 @@ function normalizeItem(raw: Partial<WorkOrderItem>): WorkOrderItem {
     id: raw.id ?? createId(),
     script: raw.script ?? "",
     videoFileName: raw.videoFileName?.trim() || "unknown-video.mp4",
+    googleDriveLink: raw.googleDriveLink ?? "",
     notes: raw.notes ?? "",
     hook1: raw.hook1 ?? "",
     hook2: raw.hook2 ?? "",
@@ -140,6 +143,7 @@ export function updateWorkOrderItem(
     Pick<
       WorkOrderItem,
       | "notes"
+      | "googleDriveLink"
       | "hook1"
       | "hook2"
       | "hook3"

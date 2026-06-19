@@ -73,7 +73,15 @@ Open [http://localhost:3000](http://localhost:3000).
 2. **Verify the script** — shown at the top; edit if needed.
 3. **Title + description** — metadata below the script.
 4. **Funnel stage** — pick TOF / MOF / BOF manually, or click **Get AI recommendation** for Anthropic's suggestion + explanation (optional **Apply**).
-5. **Save to library** — auto-assigns the next open slot, uploads the MP4, stores everything.
+5. **Save to library** — auto-assigns the next open slot, uploads the MP4 (max **100 MB**), stores everything.
+
+### Video size limit
+
+Library uploads are capped at **200 MB** per file. The `videos` storage bucket is configured for this limit.
+
+Supabase also enforces a **global** file size limit in **Storage → Settings** (separate from the bucket). If uploads fail below 200 MB, that global limit is likely still at the default **50 MB**. On Pro+, raise it here:
+
+https://supabase.com/dashboard/project/skzykljbkqnjwbmrlhvd/storage/settings
 
 ## Concept slots
 

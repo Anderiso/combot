@@ -84,6 +84,13 @@ function OrderSection({
         Reference video file: {item.videoFileName}
       </Text>
 
+      {item.googleDriveLink.trim() ? (
+        <>
+          <Text style={styles.label}>Google Drive link</Text>
+          <Text style={styles.bodyText}>{item.googleDriveLink.trim()}</Text>
+        </>
+      ) : null}
+
       <Text style={styles.label}>Hook A (original)</Text>
       <Text style={styles.bodyText}>{item.hook1}</Text>
 

@@ -1,9 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { videoStoragePath } from "@/lib/slug";
+import {
+  clearLoadSession,
+  loadLoadSession,
+  saveLoadSession,
+} from "@/lib/load-persist";
+import {
+  LIBRARY_VIDEO_MAX_MB,
+  libraryVideoSizeError,
+  supabaseStorageSizeError,
+} from "@/lib/upload-limits";
+import { videoFileName, videoStoragePath } from "@/lib/slug";
 import type { FunnelStage } from "@/lib/database.types";
 
 const STAGE_LABELS: Record<FunnelStage, string> = {
@@ -13,7 +23,9 @@ const STAGE_LABELS: Record<FunnelStage, string> = {
 };
 
 export default function LoadPage() {
+  const [hydrated, setHydrated] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("");
   const [transcribeNote, setTranscribeNote] = useState<string | null>(null);
   const [transcribing, setTranscribing] = useState(false);
@@ -33,6 +45,8 @@ export default function LoadPage() {
   const [error, setError] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedSummary, setSavedSummary] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
+  const fileInputKey = useRef(0);
 
   const loadNextSlot = useCallback(async (stage: FunnelStage) => {
     setSlotLoading(true);
@@ -58,14 +72,63 @@ export default function LoadPage() {
     loadNextSlot(funnelStage);
   }, [funnelStage, loadNextSlot]);
 
+  useEffect(() => {
+    const saved = loadLoadSession();
+    const hasSaved =
+      saved.transcript.trim() ||
+      saved.title.trim() ||
+      saved.description.trim() ||
+      saved.transcribeNote ||
+      saved.aiRecommendation ||
+      saved.fileName;
+
+    if (hasSaved) {
+      setTranscript(saved.transcript);
+      setTranscribeNote(saved.transcribeNote);
+      setTitle(saved.title);
+      setDescription(saved.description);
+      setFunnelStage(saved.funnelStage);
+      setAiRecommendation(saved.aiRecommendation);
+      setFileName(saved.fileName);
+      setRestored(true);
+    }
+
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    saveLoadSession({
+      transcript,
+      transcribeNote,
+      title,
+      description,
+      funnelStage,
+      aiRecommendation,
+      fileName,
+    });
+  }, [
+    hydrated,
+    transcript,
+    transcribeNote,
+    title,
+    description,
+    funnelStage,
+    aiRecommendation,
+    fileName,
+  ]);
+
   function handleFileChange(selected: File | null) {
     setFile(selected);
+    setFileName(selected?.name ?? null);
     setTranscript("");
     setTranscribeNote(null);
     setAiRecommendation(null);
     setError(null);
     setSavedId(null);
     setSavedSummary(null);
+    setRestored(false);
   }
 
   async function handleTranscribe() {
@@ -91,6 +154,9 @@ export default function LoadPage() {
       }
 
       setTranscript(data.transcript || "");
+      if (file) {
+        setFileName(file.name);
+      }
 
       const sizeLabel = `${data.file_size_mb} MB`;
       if (data.used_audio) {
@@ -158,7 +224,17 @@ export default function LoadPage() {
     setSavedSummary(null);
 
     if (!file) {
-      setError("Select an MP4 file.");
+      setError(
+        fileName
+          ? "Re-select your MP4 file — the video cannot be kept after you leave this page."
+          : "Select an MP4 file."
+      );
+      return;
+    }
+
+    const sizeError = libraryVideoSizeError(file);
+    if (sizeError) {
+      setError(sizeError);
       return;
     }
 
@@ -195,7 +271,10 @@ export default function LoadPage() {
         });
 
       if (uploadError) {
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        const message = uploadError.message.includes("maximum allowed size")
+          ? supabaseStorageSizeError(file)
+          : `Upload failed: ${uploadError.message}`;
+        throw new Error(message);
       }
 
       const {
@@ -228,10 +307,17 @@ export default function LoadPage() {
       setSavedId(saveData.concept.id);
       setSavedSummary(`${funnelStage} #${nextSlot} — ${title.trim()}`);
       setSaveProgress("");
-      handleFileChange(null);
+      clearLoadSession();
+      setFile(null);
+      setFileName(null);
+      setTranscript("");
+      setTranscribeNote(null);
       setTitle("");
       setDescription("");
       setFunnelStage("TOF");
+      setAiRecommendation(null);
+      setRestored(false);
+      fileInputKey.current += 1;
       loadNextSlot("TOF");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
@@ -243,13 +329,33 @@ export default function LoadPage() {
 
   const isBusy = transcribing || classifying || saving;
 
+  if (!hydrated) {
+    return (
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
+        <p className="text-sm text-zinc-500">Loading session…</p>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Load concept</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Upload a video, transcribe and verify the script, set funnel stage, then save.
+          Library videos must be {LIBRARY_VIDEO_MAX_MB} MB or smaller.
         </p>
+        {restored && (transcript.trim() || title.trim() || fileName) && (
+          <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+            Restored your last session.
+            {fileName && !file && (
+              <>
+                {" "}
+                Re-select <span className="font-medium">{fileName}</span> to save.
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -259,12 +365,25 @@ export default function LoadPage() {
             1. Video
           </h2>
           <input
+            key={fileInputKey.current}
             type="file"
             accept="video/mp4"
             disabled={isBusy}
             onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
             className="block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-700 dark:file:bg-zinc-100 dark:file:text-zinc-900"
           />
+          {fileName && !file && (
+            <p className="text-xs text-zinc-500">
+              Last file: <span className="font-medium">{fileName}</span> — re-upload to
+              transcribe again or save.
+            </p>
+          )}
+          {file && libraryVideoSizeError(file) && (
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              {libraryVideoSizeError(file)} You can still transcribe, but saving to the
+              library will fail until the file is smaller.
+            </p>
+          )}
           <button
             type="button"
             onClick={handleTranscribe}
@@ -314,6 +433,15 @@ export default function LoadPage() {
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
             />
+            {title.trim() && nextSlot !== null && !stageFull && (
+              <p className="mt-1.5 text-xs text-zinc-500">
+                Video will save as{" "}
+                <span className="font-mono font-medium text-zinc-700 dark:text-zinc-300">
+                  {videoFileName(title.trim(), nextSlot)}
+                </span>{" "}
+                in {funnelStage} (from this title, not your upload filename).
+              </p>
+            )}
           </div>
 
           <div>

@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Concept } from "@/lib/database.types";
+import type { Concept, FunnelStage } from "@/lib/database.types";
+import { videoFileName } from "@/lib/slug";
+
+const STAGE_LABELS: Record<FunnelStage, string> = {
+  TOF: "Top of funnel",
+  MOF: "Middle of funnel",
+  BOF: "Bottom of funnel",
+};
+
+const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
 
 function Collapsible({
   title,
@@ -42,6 +51,93 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
   const [remixing, setRemixing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [funnelStage, setFunnelStage] = useState<FunnelStage>(
+    concept.funnel_stage as FunnelStage
+  );
+  const [nextSlot, setNextSlot] = useState<number | null>(null);
+  const [targetFull, setTargetFull] = useState(false);
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveMessage, setMoveMessage] = useState<string | null>(null);
+
+  const stageChanged = funnelStage !== concept.funnel_stage;
+
+  useEffect(() => {
+    setFunnelStage(concept.funnel_stage as FunnelStage);
+    setMoveMessage(null);
+    setMoveError(null);
+  }, [concept.funnel_stage, concept.id, concept.number]);
+
+  useEffect(() => {
+    if (!stageChanged) {
+      setNextSlot(null);
+      setTargetFull(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadNextSlot() {
+      setSlotLoading(true);
+      try {
+        const res = await fetch(`/api/concepts/next-slot?funnel_stage=${funnelStage}`);
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        if (!res.ok) {
+          throw new Error(data.error || "Could not load next slot.");
+        }
+
+        setNextSlot(data.next_number);
+        setTargetFull(Boolean(data.full));
+      } catch {
+        if (!cancelled) {
+          setNextSlot(null);
+          setTargetFull(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setSlotLoading(false);
+        }
+      }
+    }
+
+    void loadNextSlot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [funnelStage, stageChanged]);
+
+  async function handleMoveStage() {
+    if (!stageChanged || targetFull) return;
+
+    setMoving(true);
+    setMoveError(null);
+    setMoveMessage(null);
+
+    try {
+      const res = await fetch(`/api/concepts/${concept.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ funnel_stage: funnelStage }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Could not move concept.");
+      }
+
+      setMoveMessage(data.message || `Moved to ${funnelStage}.`);
+      router.refresh();
+    } catch (error) {
+      setMoveError(error instanceof Error ? error.message : "Could not move concept.");
+    } finally {
+      setMoving(false);
+    }
+  }
 
   async function handleDelete() {
     const confirmed = window.confirm(
@@ -112,6 +208,58 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{concept.title}</h1>
         </div>
 
+        <section className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <h2 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            Funnel stage
+          </h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[200px] flex-1">
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Category
+              </label>
+              <select
+                value={funnelStage}
+                onChange={(e) => setFunnelStage(e.target.value as FunnelStage)}
+                disabled={moving || deleting || remixing}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
+              >
+                {STAGES.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {STAGE_LABELS[stage]} ({stage})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={handleMoveStage}
+              disabled={
+                !stageChanged || moving || deleting || remixing || targetFull || slotLoading
+              }
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            >
+              {moving ? "Moving…" : "Move to bucket"}
+            </button>
+          </div>
+          {stageChanged && (
+            <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+              {slotLoading
+                ? "Checking next slot…"
+                : targetFull
+                  ? `${STAGE_LABELS[funnelStage]} is full (100/100).`
+                  : nextSlot !== null
+                    ? `Will move to ${funnelStage} slot #${nextSlot}. Slot ${concept.funnel_stage} #${concept.number} will be freed.`
+                    : null}
+            </p>
+          )}
+          {moveMessage && (
+            <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">{moveMessage}</p>
+          )}
+          {moveError && (
+            <p className="mt-2 text-xs text-red-700 dark:text-red-300">{moveError}</p>
+          )}
+        </section>
+
         <video
           src={concept.video_url}
           controls
@@ -121,7 +269,7 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
         <div className="flex flex-wrap gap-3">
           <a
             href={concept.video_url}
-            download
+            download={videoFileName(concept.title)}
             className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
             Download video

@@ -102,6 +102,18 @@ function OrderCard({
 
       <div className="space-y-4">
         <div>
+          <FieldLabel>Google Drive link</FieldLabel>
+          <input
+            type="url"
+            value={item.googleDriveLink}
+            onChange={(e) => onChange({ googleDriveLink: e.target.value })}
+            disabled={isBusy}
+            placeholder="https://drive.google.com/..."
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+          />
+        </div>
+
+        <div>
           <FieldLabel>Notes for your team</FieldLabel>
           <textarea
             value={item.notes}
