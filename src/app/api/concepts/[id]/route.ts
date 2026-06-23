@@ -10,15 +10,28 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  let body: { funnel_stage?: string };
+  let body: { funnel_stage?: string; title?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const newStage = body.funnel_stage?.trim().toUpperCase();
-  if (!newStage || !isFunnelStage(newStage)) {
+  const rawTitle = body.title?.trim();
+  const rawStage = body.funnel_stage?.trim().toUpperCase();
+
+  if (rawTitle === undefined && rawStage === undefined) {
+    return NextResponse.json(
+      { error: "Provide title and/or funnel_stage to update." },
+      { status: 400 }
+    );
+  }
+
+  if (rawTitle !== undefined && !rawTitle) {
+    return NextResponse.json({ error: "Title cannot be empty." }, { status: 400 });
+  }
+
+  if (rawStage !== undefined && !isFunnelStage(rawStage)) {
     return NextResponse.json(
       { error: "Invalid funnel_stage. Use TMOF or BOF." },
       { status: 400 }
@@ -41,43 +54,57 @@ export async function PATCH(
     return NextResponse.json({ error: "Concept not found." }, { status: 404 });
   }
 
-  if (concept.funnel_stage === newStage) {
+  const targetTitle = rawTitle ?? concept.title;
+  const targetStage = (rawStage ?? concept.funnel_stage) as FunnelStage;
+  const stageChanging = targetStage !== concept.funnel_stage;
+  const titleChanging = targetTitle !== concept.title;
+
+  if (!stageChanging && !titleChanging) {
     return NextResponse.json({
       concept,
-      message: `Already in ${newStage}.`,
+      message: "No changes to save.",
     });
   }
 
-  const { data: targetRows, error: slotError } = await supabase
-    .from("concepts")
-    .select("number")
-    .eq("funnel_stage", newStage as FunnelStage)
-    .order("number");
+  let targetNumber = concept.number;
 
-  if (slotError) {
-    return NextResponse.json({ error: slotError.message }, { status: 500 });
+  if (stageChanging) {
+    const { data: targetRows, error: slotError } = await supabase
+      .from("concepts")
+      .select("number")
+      .eq("funnel_stage", targetStage)
+      .order("number");
+
+    if (slotError) {
+      return NextResponse.json({ error: slotError.message }, { status: 500 });
+    }
+
+    const max = stageSlotLimit(targetStage);
+    const nextNumber = findNextSlot((targetRows ?? []).map((row) => row.number), max);
+    if (nextNumber === null) {
+      return NextResponse.json(
+        { error: `${targetStage} is full (${max}/${max}). Delete a concept to free a slot.` },
+        { status: 409 }
+      );
+    }
+
+    targetNumber = nextNumber;
   }
 
-  const max = stageSlotLimit(newStage);
-  const nextNumber = findNextSlot((targetRows ?? []).map((row) => row.number), max);
-  if (nextNumber === null) {
-    return NextResponse.json(
-      { error: `${newStage} is full (${max}/${max}). Delete a concept to free a slot.` },
-      { status: 409 }
-    );
-  }
+  const newPath = videoStoragePath(targetStage, targetNumber, targetTitle);
+  const pathChanging = newPath !== concept.video_path;
 
-  const newPath = videoStoragePath(newStage, nextNumber, concept.title);
+  if (pathChanging) {
+    const { error: moveError } = await supabase.storage
+      .from("videos")
+      .move(concept.video_path, newPath);
 
-  const { error: moveError } = await supabase.storage
-    .from("videos")
-    .move(concept.video_path, newPath);
-
-  if (moveError) {
-    return NextResponse.json(
-      { error: `Failed to move video: ${moveError.message}` },
-      { status: 500 }
-    );
+    if (moveError) {
+      return NextResponse.json(
+        { error: `Failed to move video: ${moveError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   const {
@@ -87,8 +114,9 @@ export async function PATCH(
   const { data: updated, error: updateError } = await supabase
     .from("concepts")
     .update({
-      funnel_stage: newStage,
-      number: nextNumber,
+      title: targetTitle,
+      funnel_stage: targetStage,
+      number: targetNumber,
       video_path: newPath,
       video_url: publicUrl,
     })
@@ -97,13 +125,25 @@ export async function PATCH(
     .single();
 
   if (updateError) {
-    await supabase.storage.from("videos").move(newPath, concept.video_path);
+    if (pathChanging) {
+      await supabase.storage.from("videos").move(newPath, concept.video_path);
+    }
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  const messages: string[] = [];
+  if (titleChanging) {
+    messages.push(`Title updated to "${targetTitle}".`);
+  }
+  if (stageChanging) {
+    messages.push(
+      `Moved from ${concept.funnel_stage} #${concept.number} to ${targetStage} #${targetNumber}.`
+    );
   }
 
   return NextResponse.json({
     concept: updated,
-    message: `Moved from ${concept.funnel_stage} #${concept.number} to ${newStage} #${nextNumber}.`,
+    message: messages.join(" "),
   });
 }
 
