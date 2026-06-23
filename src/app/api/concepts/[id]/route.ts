@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { findNextSlot, isFunnelStage } from "@/lib/funnel";
+import { findNextSlot, isFunnelStage, stageSlotLimit } from "@/lib/funnel";
 import { videoStoragePath } from "@/lib/slug";
 import type { FunnelStage } from "@/lib/database.types";
 
@@ -20,7 +20,7 @@ export async function PATCH(
   const newStage = body.funnel_stage?.trim().toUpperCase();
   if (!newStage || !isFunnelStage(newStage)) {
     return NextResponse.json(
-      { error: "Invalid funnel_stage. Use TOF, MOF, or BOF." },
+      { error: "Invalid funnel_stage. Use TMOF or BOF." },
       { status: 400 }
     );
   }
@@ -58,10 +58,11 @@ export async function PATCH(
     return NextResponse.json({ error: slotError.message }, { status: 500 });
   }
 
-  const nextNumber = findNextSlot((targetRows ?? []).map((row) => row.number));
+  const max = stageSlotLimit(newStage);
+  const nextNumber = findNextSlot((targetRows ?? []).map((row) => row.number), max);
   if (nextNumber === null) {
     return NextResponse.json(
-      { error: `${newStage} is full (100/100). Delete a concept to free a slot.` },
+      { error: `${newStage} is full (${max}/${max}). Delete a concept to free a slot.` },
       { status: 409 }
     );
   }

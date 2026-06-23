@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Concept, FunnelStage } from "@/lib/database.types";
+import { FUNNEL_STAGES } from "@/lib/funnel";
 
-const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
+const STAGES: FunnelStage[] = FUNNEL_STAGES;
 
 export const dynamic = "force-dynamic";
 

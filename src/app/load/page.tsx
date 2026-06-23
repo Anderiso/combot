@@ -15,12 +15,7 @@ import {
 } from "@/lib/upload-limits";
 import { videoFileName, videoStoragePath } from "@/lib/slug";
 import type { FunnelStage } from "@/lib/database.types";
-
-const STAGE_LABELS: Record<FunnelStage, string> = {
-  TOF: "Top of funnel",
-  MOF: "Middle of funnel",
-  BOF: "Bottom of funnel",
-};
+import { FUNNEL_STAGES, SLOT_LIMITS, STAGE_LABELS } from "@/lib/funnel";
 
 export default function LoadPage() {
   const [hydrated, setHydrated] = useState(false);
@@ -31,7 +26,7 @@ export default function LoadPage() {
   const [transcribing, setTranscribing] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [funnelStage, setFunnelStage] = useState<FunnelStage>("TOF");
+  const [funnelStage, setFunnelStage] = useState<FunnelStage>("TMOF");
   const [nextSlot, setNextSlot] = useState<number | null>(null);
   const [stageFull, setStageFull] = useState(false);
   const [slotLoading, setSlotLoading] = useState(false);
@@ -314,11 +309,11 @@ export default function LoadPage() {
       setTranscribeNote(null);
       setTitle("");
       setDescription("");
-      setFunnelStage("TOF");
+      setFunnelStage("TMOF");
       setAiRecommendation(null);
       setRestored(false);
       fileInputKey.current += 1;
-      loadNextSlot("TOF");
+      loadNextSlot("TMOF");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
       setSaveProgress("");
@@ -474,9 +469,11 @@ export default function LoadPage() {
                 onChange={(e) => setFunnelStage(e.target.value as FunnelStage)}
                 className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
               >
-                <option value="TOF">{STAGE_LABELS.TOF}</option>
-                <option value="MOF">{STAGE_LABELS.MOF}</option>
-                <option value="BOF">{STAGE_LABELS.BOF}</option>
+                {FUNNEL_STAGES.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {STAGE_LABELS[stage]} ({stage})
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -494,7 +491,7 @@ export default function LoadPage() {
             <p className="text-sm text-zinc-500">Checking next slot…</p>
           ) : stageFull ? (
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              {STAGE_LABELS[funnelStage]} is full (100/100).
+              {STAGE_LABELS[funnelStage]} is full ({SLOT_LIMITS[funnelStage]}/{SLOT_LIMITS[funnelStage]}).
             </p>
           ) : (
             <p className="text-sm text-zinc-600 dark:text-zinc-400">

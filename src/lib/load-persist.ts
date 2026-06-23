@@ -1,4 +1,5 @@
 import type { FunnelStage } from "@/lib/database.types";
+import { normalizeFunnelStage } from "@/lib/funnel";
 
 export type LoadAiRecommendation = {
   funnel_stage: FunnelStage;
@@ -22,7 +23,7 @@ const EMPTY_SESSION: LoadSession = {
   transcribeNote: null,
   title: "",
   description: "",
-  funnelStage: "TOF",
+  funnelStage: "TMOF",
   aiRecommendation: null,
   fileName: null,
 };
@@ -39,9 +40,7 @@ export function loadLoadSession(): LoadSession {
     }
 
     const parsed = JSON.parse(raw) as Partial<LoadSession>;
-    const stage = parsed.funnelStage;
-    const funnelStage: FunnelStage =
-      stage === "MOF" || stage === "BOF" ? stage : "TOF";
+    const funnelStage = normalizeFunnelStage(parsed.funnelStage);
 
     return {
       transcript: parsed.transcript ?? "",

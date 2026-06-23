@@ -12,14 +12,9 @@ type BrandProfile = {
 
 const STAGES: { value: FunnelStage; label: string; hint: string }[] = [
   {
-    value: "TOF",
-    label: "TOF",
-    hint: "Hook + pain. Unaware or problem-aware audience.",
-  },
-  {
-    value: "MOF",
-    label: "MOF",
-    hint: "Solution-aware. Show how it works and why to trust it.",
+    value: "TMOF",
+    label: "TMOF",
+    hint: "Top / middle of funnel. Hooks, pain, education, proof, demos.",
   },
   {
     value: "BOF",
@@ -29,7 +24,7 @@ const STAGES: { value: FunnelStage; label: string; hint: string }[] = [
 ];
 
 export default function CopywritePage() {
-  const [funnelStage, setFunnelStage] = useState<FunnelStage>("TOF");
+  const [funnelStage, setFunnelStage] = useState<FunnelStage>("TMOF");
   const [notes, setNotes] = useState("");
   const [script, setScript] = useState("");
   const [brand, setBrand] = useState<BrandProfile | null>(null);

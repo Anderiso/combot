@@ -5,14 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Concept, FunnelStage } from "@/lib/database.types";
 import { videoFileName } from "@/lib/slug";
+import { FUNNEL_STAGES, SLOT_LIMITS, STAGE_LABELS } from "@/lib/funnel";
 
-const STAGE_LABELS: Record<FunnelStage, string> = {
-  TOF: "Top of funnel",
-  MOF: "Middle of funnel",
-  BOF: "Bottom of funnel",
-};
-
-const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
+const STAGES: FunnelStage[] = FUNNEL_STAGES;
 
 function Collapsible({
   title,
@@ -246,7 +241,7 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
               {slotLoading
                 ? "Checking next slot…"
                 : targetFull
-                  ? `${STAGE_LABELS[funnelStage]} is full (100/100).`
+                  ? `${STAGE_LABELS[funnelStage]} is full (${SLOT_LIMITS[funnelStage]}/${SLOT_LIMITS[funnelStage]}).`
                   : nextSlot !== null
                     ? `Will move to ${funnelStage} slot #${nextSlot}. Slot ${concept.funnel_stage} #${concept.number} will be freed.`
                     : null}

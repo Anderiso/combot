@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { isFunnelStage, stageSlotLimit } from "@/lib/funnel";
 import type { FunnelStage } from "@/lib/database.types";
-
-const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const funnelStage = searchParams.get("funnel_stage");
   const number = searchParams.get("number");
 
-  if (!funnelStage || !STAGES.includes(funnelStage as FunnelStage)) {
+  if (!funnelStage || !isFunnelStage(funnelStage)) {
     return NextResponse.json(
-      { error: "Invalid funnel_stage. Use TOF, MOF, or BOF." },
+      { error: "Invalid funnel_stage. Use TMOF or BOF." },
       { status: 400 }
     );
   }
 
+  const max = stageSlotLimit(funnelStage);
   const parsedNumber = Number(number);
-  if (!Number.isInteger(parsedNumber) || parsedNumber < 1 || parsedNumber > 100) {
+  if (!Number.isInteger(parsedNumber) || parsedNumber < 1 || parsedNumber > max) {
     return NextResponse.json(
-      { error: "Number must be an integer between 1 and 100." },
+      { error: `Number must be an integer between 1 and ${max}.` },
       { status: 400 }
     );
   }

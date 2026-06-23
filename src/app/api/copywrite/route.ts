@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     if (!funnelStage) {
       return NextResponse.json(
-        { error: "funnel_stage is required (TOF, MOF, or BOF)." },
+        { error: "funnel_stage is required (TMOF or BOF)." },
         { status: 400 }
       );
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { findNextSlot, isFunnelStage } from "@/lib/funnel";
+import { findNextSlot, isFunnelStage, stageSlotLimit } from "@/lib/funnel";
 import type { FunnelStage } from "@/lib/database.types";
 
 export async function GET(request: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
 
   if (!funnelStage || !isFunnelStage(funnelStage)) {
     return NextResponse.json(
-      { error: "Invalid funnel_stage. Use TOF, MOF, or BOF." },
+      { error: "Invalid funnel_stage. Use TMOF or BOF." },
       { status: 400 }
     );
   }
@@ -24,13 +24,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const nextNumber = findNextSlot((data ?? []).map((row) => row.number));
+  const max = stageSlotLimit(funnelStage);
+  const nextNumber = findNextSlot((data ?? []).map((row) => row.number), max);
 
   if (nextNumber === null) {
     return NextResponse.json({
       funnel_stage: funnelStage,
       next_number: null,
       full: true,
+      max_slots: max,
     });
   }
 
@@ -38,5 +40,6 @@ export async function GET(request: NextRequest) {
     funnel_stage: funnelStage,
     next_number: nextNumber,
     full: false,
+    max_slots: max,
   });
 }

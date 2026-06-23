@@ -89,5 +89,5 @@ export type Database = {
 };
 
 export type Concept = Database["public"]["Tables"]["concepts"]["Row"];
-export type FunnelStage = "TOF" | "MOF" | "BOF";
+export type FunnelStage = "TMOF" | "BOF";
 export type BrandProfile = Database["public"]["Tables"]["brand_profile"]["Row"];

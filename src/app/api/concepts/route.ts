@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { isFunnelStage, stageSlotLimit } from "@/lib/funnel";
 import type { FunnelStage } from "@/lib/database.types";
-
-const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,9 +16,17 @@ export async function POST(request: NextRequest) {
       video_path,
     } = body;
 
-    if (!STAGES.includes(funnel_stage)) {
+    if (!isFunnelStage(funnel_stage)) {
       return NextResponse.json(
         { error: "Invalid funnel_stage." },
+        { status: 400 }
+      );
+    }
+
+    const max = stageSlotLimit(funnel_stage);
+    if (!Number.isInteger(number) || number < 1 || number > max) {
+      return NextResponse.json(
+        { error: `Slot number must be between 1 and ${max} for ${funnel_stage}.` },
         { status: 400 }
       );
     }

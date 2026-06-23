@@ -15,10 +15,8 @@ const COPYWRITE_POLISH_MAX_TOKENS = Number(
 );
 
 const FUNNEL_GUIDANCE: Record<FunnelStage, string> = {
-  TOF: `Funnel: TOF (top of funnel).
-Audience is unaware or only problem-aware. Lead with a hook that stops the scroll. Agitate a real pain they feel but have not named yet. Educate lightly — do not hard-sell. No price, no offer, no "buy now."`,
-  MOF: `Funnel: MOF (middle of funnel).
-Audience is solution-aware — they know the problem is real and that solutions exist. Show how this product works, why it is different, and why they should trust it. Use proof, demos, comparisons, and social proof. Soft CTA is fine.`,
+  TMOF: `Funnel: TMOF (top / middle of funnel).
+Audience is unaware, problem-aware, or solution-aware — but not fully product-aware and ready to buy. Lead with hooks, pain, education, proof, demos, and social proof. Do not hard-sell. No price, no offer, no "buy now."`,
   BOF: `Funnel: BOF (bottom of funnel).
 Audience is problem-aware, solution-aware, AND product-aware. They are ready to buy — convince them why THIS brand right NOW. Lean on offers, urgency, guarantees, risk reversal, and a clear call to action.`,
 };

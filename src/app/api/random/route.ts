@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { FUNNEL_STAGES } from "@/lib/funnel";
 import type { FunnelStage } from "@/lib/database.types";
-
-const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
 
 function pickRandom<T>(items: T[]): T | null {
   if (items.length === 0) return null;
@@ -20,7 +19,7 @@ export async function GET() {
   const concepts = data ?? [];
   const result: Partial<Record<FunnelStage, (typeof concepts)[number]>> = {};
 
-  for (const stage of STAGES) {
+  for (const stage of FUNNEL_STAGES) {
     const stageConcepts = concepts.filter((c) => c.funnel_stage === stage);
     const picked = pickRandom(stageConcepts);
     if (picked) {

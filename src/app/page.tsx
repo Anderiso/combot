@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from "react";
 import type { Concept, FunnelStage } from "@/lib/database.types";
+import { FUNNEL_STAGES } from "@/lib/funnel";
 
-const STAGES: FunnelStage[] = ["TOF", "MOF", "BOF"];
+const STAGES: FunnelStage[] = FUNNEL_STAGES;
 
 function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -127,7 +128,7 @@ export default function HomePage() {
       {!hasGenerated ? (
         <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
           <p className="text-sm text-zinc-500">
-            Hit Generate to pull a random TOF, MOF, and BOF concept.
+            Hit Generate to pull a random TMOF and BOF concept.
           </p>
         </div>
       ) : (
@@ -139,7 +140,7 @@ export default function HomePage() {
             </div>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 lg:grid-cols-2">
             {STAGES.map((stage) => {
               const concept = concepts[stage];
               return concept ? (
