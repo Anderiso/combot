@@ -7,6 +7,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 import OpenAI from "openai";
 import { extractAudio } from "@/lib/ffmpeg";
+import { createServiceClient } from "@/lib/supabase/server";
+import { isTranscribeTempPath } from "@/lib/transcribe-temp";
 
 /** Whisper limit is 25 MB; compress to audio when above 24 MB. */
 const AUDIO_CONVERSION_THRESHOLD_BYTES = 24 * 1024 * 1024;
@@ -20,22 +22,22 @@ async function cleanup(paths: string[]) {
 export async function POST(request: NextRequest) {
   const tempFiles: string[] = [];
   let tempDir: string | null = null;
+  let storagePath: string | null = null;
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file");
-
-    if (!(file instanceof File)) {
-      return NextResponse.json(
-        { error: "No video file provided." },
-        { status: 400 }
-      );
+    let body: { storage_path?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
     }
 
-    const videoBuffer = Buffer.from(await file.arrayBuffer());
-
-    if (videoBuffer.length === 0) {
-      return NextResponse.json({ error: "Video file was empty." }, { status: 400 });
+    storagePath = body.storage_path?.trim() ?? "";
+    if (!storagePath || !isTranscribeTempPath(storagePath)) {
+      return NextResponse.json(
+        { error: "storage_path must point to a transcribe temp upload." },
+        { status: 400 }
+      );
     }
 
     if (!process.env.OPENAI_API_KEY) {
@@ -43,6 +45,24 @@ export async function POST(request: NextRequest) {
         { error: "OPENAI_API_KEY is not configured." },
         { status: 500 }
       );
+    }
+
+    const supabase = createServiceClient();
+    const { data: blob, error: downloadError } = await supabase.storage
+      .from("videos")
+      .download(storagePath);
+
+    if (downloadError || !blob) {
+      return NextResponse.json(
+        { error: downloadError?.message || "Could not read uploaded video." },
+        { status: 404 }
+      );
+    }
+
+    const videoBuffer = Buffer.from(await blob.arrayBuffer());
+
+    if (videoBuffer.length === 0) {
+      return NextResponse.json({ error: "Video file was empty." }, { status: 400 });
     }
 
     const fileSizeMb = videoBuffer.length / (1024 * 1024);
@@ -72,7 +92,7 @@ export async function POST(request: NextRequest) {
       whisperFile = await OpenAI.toFile(audioData, "audio.mp3");
       usedAudio = true;
     } else {
-      whisperFile = await OpenAI.toFile(videoBuffer, file.name || "input.mp4");
+      whisperFile = await OpenAI.toFile(videoBuffer, "input.mp4");
     }
 
     const transcription = await openai.audio.transcriptions.create({
@@ -96,6 +116,10 @@ export async function POST(request: NextRequest) {
     if (tempDir) {
       const { rmdir } = await import("fs/promises");
       await rmdir(tempDir).catch(() => undefined);
+    }
+    if (storagePath) {
+      const supabase = createServiceClient();
+      await supabase.storage.from("videos").remove([storagePath]);
     }
   }
 }

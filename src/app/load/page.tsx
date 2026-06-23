@@ -16,6 +16,8 @@ import {
 import { videoFileName, videoStoragePath } from "@/lib/slug";
 import type { FunnelStage } from "@/lib/database.types";
 import { FUNNEL_STAGES, SLOT_LIMITS, STAGE_LABELS } from "@/lib/funnel";
+import { readApiJson } from "@/lib/api-response";
+import { createTranscribeTempPath } from "@/lib/transcribe-temp";
 
 export default function LoadPage() {
   const [hydrated, setHydrated] = useState(false);
@@ -47,7 +49,11 @@ export default function LoadPage() {
     setSlotLoading(true);
     try {
       const res = await fetch(`/api/concepts/next-slot?funnel_stage=${stage}`);
-      const data = await res.json();
+      const data = await readApiJson<{
+        error?: string;
+        next_number: number | null;
+        full?: boolean;
+      }>(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Could not load next slot.");
@@ -137,12 +143,35 @@ export default function LoadPage() {
     setTranscribeNote(null);
     setAiRecommendation(null);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    const tempPath = createTranscribeTempPath();
+    const supabase = createBrowserClient();
 
-      const res = await fetch("/api/transcribe", { method: "POST", body: formData });
-      const data = await res.json();
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("videos")
+        .upload(tempPath, file, {
+          contentType: "video/mp4",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        const message = uploadError.message.includes("maximum allowed size")
+          ? supabaseStorageSizeError(file)
+          : `Upload failed: ${uploadError.message}`;
+        throw new Error(message);
+      }
+
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storage_path: tempPath }),
+      });
+      const data = await readApiJson<{
+        error?: string;
+        transcript?: string;
+        used_audio?: boolean;
+        file_size_mb?: number;
+      }>(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Transcription failed.");
@@ -170,6 +199,7 @@ export default function LoadPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Transcription failed.");
     } finally {
+      await supabase.storage.from("videos").remove([tempPath]).catch(() => undefined);
       setTranscribing(false);
     }
   }
@@ -189,7 +219,11 @@ export default function LoadPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript }),
       });
-      const data = await res.json();
+      const data = await readApiJson<{
+        error?: string;
+        funnel_stage: FunnelStage;
+        explanation: string;
+      }>(res);
 
       if (!res.ok) {
         throw new Error(data.error || "Could not get recommendation.");
@@ -292,9 +326,11 @@ export default function LoadPage() {
         }),
       });
 
-      const saveData = await saveRes.json();
+      const saveData = await readApiJson<{ error?: string; concept?: { id: string } }>(
+        saveRes
+      );
 
-      if (!saveRes.ok) {
+      if (!saveRes.ok || !saveData.concept) {
         await supabase.storage.from("videos").remove([storagePath]);
         throw new Error(saveData.error || "Failed to save concept.");
       }
