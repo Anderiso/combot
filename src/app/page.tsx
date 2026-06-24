@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import type { Concept, FunnelStage } from "@/lib/database.types";
-import { FUNNEL_STAGES } from "@/lib/funnel";
+import { useCallback, useMemo, useState } from "react";
+import type { Concept } from "@/lib/database.types";
+import { GENERATE_COUNTS, STAGE_LABELS } from "@/lib/funnel";
 
-const STAGES: FunnelStage[] = FUNNEL_STAGES;
+type GenerateResult = {
+  TMOF: Concept[];
+  BOF: Concept | null;
+};
 
 function Collapsible({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -70,7 +73,7 @@ function ConceptCard({ concept }: { concept: Concept }) {
 }
 
 export default function HomePage() {
-  const [concepts, setConcepts] = useState<Partial<Record<FunnelStage, Concept>>>({});
+  const [concepts, setConcepts] = useState<GenerateResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -96,7 +99,25 @@ export default function HomePage() {
     }
   }, []);
 
-  const missingStages = STAGES.filter((stage) => !concepts[stage]);
+  const warnings = useMemo(() => {
+    if (!concepts) return [];
+
+    const messages: string[] = [];
+
+    if (concepts.TMOF.length === 0) {
+      messages.push("No TMOF concepts in the library yet.");
+    } else if (concepts.TMOF.length < GENERATE_COUNTS.TMOF) {
+      messages.push(
+        `Only ${concepts.TMOF.length} TMOF concept${concepts.TMOF.length === 1 ? "" : "s"} available (wanted ${GENERATE_COUNTS.TMOF}).`
+      );
+    }
+
+    if (!concepts.BOF) {
+      messages.push("No BOF concepts in the library yet.");
+    }
+
+    return messages;
+  }, [concepts]);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
@@ -104,7 +125,8 @@ export default function HomePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Generate concepts</h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Pick one random concept from each funnel stage.
+            Pull {GENERATE_COUNTS.TMOF} random TMOF concepts and {GENERATE_COUNTS.BOF} BOF
+            concept.
           </p>
         </div>
         <div className="flex gap-2">
@@ -128,32 +150,50 @@ export default function HomePage() {
       {!hasGenerated ? (
         <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center dark:border-zinc-700">
           <p className="text-sm text-zinc-500">
-            Hit Generate to pull a random TMOF and BOF concept.
+            Hit Generate to pull {GENERATE_COUNTS.TMOF} TMOF and {GENERATE_COUNTS.BOF} BOF
+            concept{GENERATE_COUNTS.BOF === 1 ? "" : "s"}.
           </p>
         </div>
       ) : (
         <>
-          {missingStages.length > 0 && (
+          {warnings.length > 0 && (
             <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-              Missing concepts for: {missingStages.join(", ")}. Load more videos to fill
-              these stages.
+              {warnings.join(" ")}
             </div>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            {STAGES.map((stage) => {
-              const concept = concepts[stage];
-              return concept ? (
-                <ConceptCard key={stage} concept={concept} />
-              ) : (
-                <div
-                  key={stage}
-                  className="flex min-h-48 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-sm text-zinc-500 dark:border-zinc-700"
-                >
-                  No {stage} concepts yet
+          <div className="space-y-10">
+            <section>
+              <h2 className="mb-4 text-lg font-medium">
+                {STAGE_LABELS.TMOF} (TMOF)
+              </h2>
+              {concepts?.TMOF.length ? (
+                <div className="grid gap-6 lg:grid-cols-3">
+                  {concepts.TMOF.map((concept) => (
+                    <ConceptCard key={concept.id} concept={concept} />
+                  ))}
                 </div>
-              );
-            })}
+              ) : (
+                <div className="flex min-h-48 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-sm text-zinc-500 dark:border-zinc-700">
+                  No TMOF concepts yet
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h2 className="mb-4 text-lg font-medium">
+                {STAGE_LABELS.BOF} (BOF)
+              </h2>
+              {concepts?.BOF ? (
+                <div className="grid gap-6 lg:grid-cols-3">
+                  <ConceptCard concept={concepts.BOF} />
+                </div>
+              ) : (
+                <div className="flex min-h-48 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-sm text-zinc-500 dark:border-zinc-700">
+                  No BOF concepts yet
+                </div>
+              )}
+            </section>
           </div>
         </>
       )}

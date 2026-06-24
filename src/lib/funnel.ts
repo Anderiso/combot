@@ -12,6 +12,26 @@ export const STAGE_LABELS: Record<FunnelStage, string> = {
   BOF: "Bottom of funnel",
 };
 
+/** How many random concepts to pull per stage on the Generate page. */
+export const GENERATE_COUNTS: Record<FunnelStage, number> = {
+  TMOF: 3,
+  BOF: 1,
+};
+
+export function pickRandomItems<T>(items: T[], count: number): T[] {
+  if (count <= 0 || items.length === 0) {
+    return [];
+  }
+
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+
+  return copy.slice(0, Math.min(count, copy.length));
+}
+
 export function stageSlotLimit(stage: FunnelStage): number {
   return SLOT_LIMITS[stage];
 }

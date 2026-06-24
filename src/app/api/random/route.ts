@@ -1,12 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { FUNNEL_STAGES } from "@/lib/funnel";
-import type { FunnelStage } from "@/lib/database.types";
-
-function pickRandom<T>(items: T[]): T | null {
-  if (items.length === 0) return null;
-  return items[Math.floor(Math.random() * items.length)];
-}
+import { FUNNEL_STAGES, GENERATE_COUNTS, pickRandomItems } from "@/lib/funnel";
+import type { Concept, FunnelStage } from "@/lib/database.types";
 
 export async function GET() {
   const supabase = createServiceClient();
@@ -16,14 +11,24 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const concepts = data ?? [];
-  const result: Partial<Record<FunnelStage, (typeof concepts)[number]>> = {};
+  const concepts = (data ?? []) as Concept[];
+  const result: {
+    TMOF: Concept[];
+    BOF: Concept | null;
+  } = {
+    TMOF: [],
+    BOF: null,
+  };
 
   for (const stage of FUNNEL_STAGES) {
     const stageConcepts = concepts.filter((c) => c.funnel_stage === stage);
-    const picked = pickRandom(stageConcepts);
-    if (picked) {
-      result[stage] = picked;
+    const count = GENERATE_COUNTS[stage as FunnelStage];
+    const picked = pickRandomItems(stageConcepts, count);
+
+    if (stage === "TMOF") {
+      result.TMOF = picked;
+    } else {
+      result.BOF = picked[0] ?? null;
     }
   }
 
