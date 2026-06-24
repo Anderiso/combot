@@ -43,6 +43,7 @@ export type Database = {
           funnel_stage: string;
           id: string;
           number: number;
+          tag_id: string | null;
           title: string;
           transcript: string | null;
           video_path: string;
@@ -54,6 +55,7 @@ export type Database = {
           funnel_stage: string;
           id?: string;
           number: number;
+          tag_id?: string | null;
           title: string;
           transcript?: string | null;
           video_path: string;
@@ -65,10 +67,40 @@ export type Database = {
           funnel_stage?: string;
           id?: string;
           number?: number;
+          tag_id?: string | null;
           title?: string;
           transcript?: string | null;
           video_path?: string;
           video_url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "concepts_tag_id_fkey";
+            columns: ["tag_id"];
+            isOneToOne: false;
+            referencedRelation: "concept_tags";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      concept_tags: {
+        Row: {
+          created_at: string | null;
+          description: string | null;
+          id: string;
+          name: string;
+        };
+        Insert: {
+          created_at?: string | null;
+          description?: string | null;
+          id?: string;
+          name: string;
+        };
+        Update: {
+          created_at?: string | null;
+          description?: string | null;
+          id?: string;
+          name?: string;
         };
         Relationships: [];
       };
@@ -89,5 +121,9 @@ export type Database = {
 };
 
 export type Concept = Database["public"]["Tables"]["concepts"]["Row"];
+export type ConceptTag = Database["public"]["Tables"]["concept_tags"]["Row"];
+export type ConceptWithTag = Concept & {
+  tag: Pick<ConceptTag, "id" | "name"> | null;
+};
 export type FunnelStage = "TMOF" | "BOF";
 export type BrandProfile = Database["public"]["Tables"]["brand_profile"]["Row"];

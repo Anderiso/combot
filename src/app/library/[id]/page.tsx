@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { ConceptDetail } from "@/components/ConceptDetail";
+import type { ConceptTag, ConceptWithTag } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +13,25 @@ export default async function ConceptPage({
   const { id } = await params;
   const supabase = createServiceClient();
 
-  const { data, error } = await supabase
-    .from("concepts")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data, error }, { data: tags, error: tagsError }] = await Promise.all([
+    supabase
+      .from("concepts")
+      .select("*, tag:concept_tags(id, name)")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase.from("concept_tags").select("*").order("name"),
+  ]);
 
-  if (error || !data) {
+  if (error || !data || tagsError) {
     notFound();
   }
 
-  return <ConceptDetail concept={data} />;
+  const concept = {
+    ...data,
+    tag: Array.isArray(data.tag) ? data.tag[0] ?? null : data.tag,
+  } as ConceptWithTag;
+
+  return (
+    <ConceptDetail concept={concept} tags={(tags ?? []) as ConceptTag[]} />
+  );
 }

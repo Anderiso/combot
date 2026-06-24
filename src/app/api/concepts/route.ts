@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isFunnelStage, stageSlotLimit } from "@/lib/funnel";
-import type { FunnelStage } from "@/lib/database.types";
+import { resolveTagId } from "@/lib/tags";import type { FunnelStage } from "@/lib/database.types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
       transcript,
       video_url,
       video_path,
+      tag_id,
     } = body;
 
     if (!isFunnelStage(funnel_stage)) {
@@ -38,6 +39,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const resolvedTag = await resolveTagId(tag_id);
+    if ("error" in resolvedTag) {
+      return NextResponse.json({ error: resolvedTag.error }, { status: 400 });
+    }
+
     const supabase = createServiceClient();
     const { data, error } = await supabase
       .from("concepts")
@@ -49,6 +55,7 @@ export async function POST(request: NextRequest) {
         transcript: transcript || null,
         video_url,
         video_path,
+        tag_id: resolvedTag.tagId,
       })
       .select()
       .single();

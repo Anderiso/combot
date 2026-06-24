@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { findNextSlot, isFunnelStage, stageSlotLimit } from "@/lib/funnel";
 import { videoStoragePath } from "@/lib/slug";
+import { resolveTagId } from "@/lib/tags";
 import type { FunnelStage } from "@/lib/database.types";
 
 export async function PATCH(
@@ -10,7 +11,7 @@ export async function PATCH(
 ) {
   const { id } = await params;
 
-  let body: { funnel_stage?: string; title?: string };
+  let body: { funnel_stage?: string; title?: string; tag_id?: string | null };
   try {
     body = await request.json();
   } catch {
@@ -19,10 +20,11 @@ export async function PATCH(
 
   const rawTitle = body.title?.trim();
   const rawStage = body.funnel_stage?.trim().toUpperCase();
+  const hasTagUpdate = Object.prototype.hasOwnProperty.call(body, "tag_id");
 
-  if (rawTitle === undefined && rawStage === undefined) {
+  if (rawTitle === undefined && rawStage === undefined && !hasTagUpdate) {
     return NextResponse.json(
-      { error: "Provide title and/or funnel_stage to update." },
+      { error: "Provide title, funnel_stage, and/or tag_id to update." },
       { status: 400 }
     );
   }
@@ -56,13 +58,42 @@ export async function PATCH(
 
   const targetTitle = rawTitle ?? concept.title;
   const targetStage = (rawStage ?? concept.funnel_stage) as FunnelStage;
-  const stageChanging = targetStage !== concept.funnel_stage;
-  const titleChanging = targetTitle !== concept.title;
+  const stageChanging = rawStage !== undefined && targetStage !== concept.funnel_stage;
+  const titleChanging = rawTitle !== undefined && targetTitle !== concept.title;
 
-  if (!stageChanging && !titleChanging) {
+  let targetTagId = concept.tag_id;
+  if (hasTagUpdate) {
+    const resolvedTag = await resolveTagId(body.tag_id);
+    if ("error" in resolvedTag) {
+      return NextResponse.json({ error: resolvedTag.error }, { status: 400 });
+    }
+    targetTagId = resolvedTag.tagId;
+  }
+
+  const tagChanging = hasTagUpdate && targetTagId !== concept.tag_id;
+
+  if (!stageChanging && !titleChanging && !tagChanging) {
     return NextResponse.json({
       concept,
       message: "No changes to save.",
+    });
+  }
+
+  if (!stageChanging && !titleChanging && tagChanging) {
+    const { data: updated, error: updateError } = await supabase
+      .from("concepts")
+      .update({ tag_id: targetTagId })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      concept: updated,
+      message: targetTagId ? "Tag updated." : "Tag removed.",
     });
   }
 
@@ -119,6 +150,7 @@ export async function PATCH(
       number: targetNumber,
       video_path: newPath,
       video_url: publicUrl,
+      tag_id: targetTagId,
     })
     .eq("id", id)
     .select()
@@ -139,6 +171,9 @@ export async function PATCH(
     messages.push(
       `Moved from ${concept.funnel_stage} #${concept.number} to ${targetStage} #${targetNumber}.`
     );
+  }
+  if (tagChanging) {
+    messages.push(targetTagId ? "Tag updated." : "Tag removed.");
   }
 
   return NextResponse.json({

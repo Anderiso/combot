@@ -14,10 +14,11 @@ import {
   supabaseStorageSizeError,
 } from "@/lib/upload-limits";
 import { videoFileName, videoStoragePath } from "@/lib/slug";
-import type { FunnelStage } from "@/lib/database.types";
+import type { ConceptTag, FunnelStage } from "@/lib/database.types";
 import { FUNNEL_STAGES, SLOT_LIMITS, STAGE_LABELS } from "@/lib/funnel";
 import { readApiJson } from "@/lib/api-response";
 import { createTranscribeTempPath } from "@/lib/transcribe-temp";
+import { TagSelect } from "@/components/TagSelect";
 
 export default function LoadPage() {
   const [hydrated, setHydrated] = useState(false);
@@ -43,6 +44,8 @@ export default function LoadPage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedSummary, setSavedSummary] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
+  const [tags, setTags] = useState<ConceptTag[]>([]);
+  const [tagId, setTagId] = useState("");
   const fileInputKey = useRef(0);
 
   const loadNextSlot = useCallback(async (stage: FunnelStage) => {
@@ -72,6 +75,22 @@ export default function LoadPage() {
   useEffect(() => {
     loadNextSlot(funnelStage);
   }, [funnelStage, loadNextSlot]);
+
+  useEffect(() => {
+    async function loadTags() {
+      try {
+        const res = await fetch("/api/tags");
+        const data = await readApiJson<{ tags?: ConceptTag[] }>(res);
+        if (res.ok) {
+          setTags(data.tags ?? []);
+        }
+      } catch {
+        // Tags are optional on load — user can still save untagged.
+      }
+    }
+
+    void loadTags();
+  }, []);
 
   useEffect(() => {
     const saved = loadLoadSession();
@@ -323,6 +342,7 @@ export default function LoadPage() {
           transcript: transcript.trim(),
           video_url: publicUrl,
           video_path: storagePath,
+          tag_id: tagId || null,
         }),
       });
 
@@ -346,6 +366,7 @@ export default function LoadPage() {
       setTitle("");
       setDescription("");
       setFunnelStage("TMOF");
+      setTagId("");
       setAiRecommendation(null);
       setRestored(false);
       fileInputKey.current += 1;
@@ -487,6 +508,22 @@ export default function LoadPage() {
               placeholder="Notes on what the ad looks like…"
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
             />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Tag (optional)</label>
+            <TagSelect
+              tags={tags}
+              value={tagId}
+              onChange={setTagId}
+              disabled={saving}
+            />
+            <p className="mt-1.5 text-xs text-zinc-500">
+              Group this concept under a larger theme.{" "}
+              <Link href="/library" className="underline">
+                Manage tags
+              </Link>
+              .
+            </p>
           </div>
         </section>
 

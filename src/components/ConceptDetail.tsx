@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Concept, FunnelStage } from "@/lib/database.types";
+import type { ConceptTag, ConceptWithTag, FunnelStage } from "@/lib/database.types";
 import { videoFileName, videoStoragePath } from "@/lib/slug";
 import { FUNNEL_STAGES, SLOT_LIMITS, STAGE_LABELS } from "@/lib/funnel";
+import { TagSelect } from "@/components/TagSelect";
 
 const STAGES: FunnelStage[] = FUNNEL_STAGES;
 
@@ -39,7 +40,13 @@ function Collapsible({
   );
 }
 
-export function ConceptDetail({ concept }: { concept: Concept }) {
+export function ConceptDetail({
+  concept,
+  tags,
+}: {
+  concept: ConceptWithTag;
+  tags: ConceptTag[];
+}) {
   const router = useRouter();
   const [ideas, setIdeas] = useState<string | null>(null);
   const [remixError, setRemixError] = useState<string | null>(null);
@@ -59,9 +66,14 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
   const [savingTitle, setSavingTitle] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [titleMessage, setTitleMessage] = useState<string | null>(null);
+  const [tagId, setTagId] = useState(concept.tag_id ?? "");
+  const [savingTag, setSavingTag] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [tagMessage, setTagMessage] = useState<string | null>(null);
 
   const stageChanged = funnelStage !== concept.funnel_stage;
   const titleChanged = title.trim() !== concept.title;
+  const tagChanged = tagId !== (concept.tag_id ?? "");
 
   useEffect(() => {
     setTitle(concept.title);
@@ -74,6 +86,12 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
     setMoveMessage(null);
     setMoveError(null);
   }, [concept.funnel_stage, concept.id, concept.number]);
+
+  useEffect(() => {
+    setTagId(concept.tag_id ?? "");
+    setTagMessage(null);
+    setTagError(null);
+  }, [concept.tag_id, concept.id]);
 
   useEffect(() => {
     if (!stageChanged) {
@@ -116,6 +134,34 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
       cancelled = true;
     };
   }, [funnelStage, stageChanged]);
+
+  async function handleSaveTag() {
+    if (!tagChanged) return;
+
+    setSavingTag(true);
+    setTagError(null);
+    setTagMessage(null);
+
+    try {
+      const res = await fetch(`/api/concepts/${concept.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag_id: tagId || null }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Could not update tag.");
+      }
+
+      setTagMessage(data.message || "Tag saved.");
+      router.refresh();
+    } catch (error) {
+      setTagError(error instanceof Error ? error.message : "Could not update tag.");
+    } finally {
+      setSavingTag(false);
+    }
+  }
 
   async function handleSaveTitle() {
     const trimmed = title.trim();
@@ -244,6 +290,7 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
             {concept.funnel_stage} · #{concept.number}
+            {concept.tag ? ` · ${concept.tag.name}` : ""}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{concept.title}</h1>
         </div>
@@ -295,6 +342,41 @@ export function ConceptDetail({ concept }: { concept: Concept }) {
           )}
           {titleError && (
             <p className="mt-2 text-xs text-red-700 dark:text-red-300">{titleError}</p>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <h2 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            Tag
+          </h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[200px] flex-1">
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Concept group
+              </label>
+              <TagSelect
+                tags={tags}
+                value={tagId}
+                onChange={setTagId}
+                disabled={savingTag || moving || deleting || remixing || savingTitle}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveTag}
+              disabled={
+                !tagChanged || savingTag || moving || deleting || remixing || savingTitle
+              }
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            >
+              {savingTag ? "Saving…" : "Save tag"}
+            </button>
+          </div>
+          {tagMessage && (
+            <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">{tagMessage}</p>
+          )}
+          {tagError && (
+            <p className="mt-2 text-xs text-red-700 dark:text-red-300">{tagError}</p>
           )}
         </section>
 
