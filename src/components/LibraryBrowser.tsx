@@ -23,6 +23,7 @@ export function LibraryBrowser({
   const router = useRouter();
   const [tags, setTags] = useState(initialTags);
   const [filter, setFilter] = useState<FilterValue>("all");
+  const [search, setSearch] = useState("");
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
 
   useEffect(() => {
@@ -30,10 +31,27 @@ export function LibraryBrowser({
   }, [initialTags]);
 
   const filteredConcepts = useMemo(() => {
-    if (filter === "all") return initialConcepts;
-    if (filter === "untagged") return initialConcepts.filter((concept) => !concept.tag_id);
-    return initialConcepts.filter((concept) => concept.tag_id === filter);
-  }, [initialConcepts, filter]);
+    let results = initialConcepts;
+
+    if (filter === "untagged") {
+      results = results.filter((concept) => !concept.tag_id);
+    } else if (filter !== "all") {
+      results = results.filter((concept) => concept.tag_id === filter);
+    }
+
+    const query = search.trim().toLowerCase();
+    if (query) {
+      results = results.filter((concept) => {
+        const titleMatch = concept.title.toLowerCase().includes(query);
+        const tagMatch = concept.tag?.name.toLowerCase().includes(query) ?? false;
+        return titleMatch || tagMatch;
+      });
+    }
+
+    return results;
+  }, [initialConcepts, filter, search]);
+
+  const hasActiveFilters = filter !== "all" || search.trim().length > 0;
 
   const grouped = STAGES.map((stage) => ({
     stage,
@@ -72,23 +90,45 @@ export function LibraryBrowser({
       </div>
 
       {totalCount > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Filter by tag
-          </label>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
-          >
-            <option value="all">All concepts</option>
-            <option value="untagged">Untagged</option>
-            {tags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
+        <div className="mb-6 flex flex-wrap items-end gap-4">
+          <div className="min-w-[220px] flex-1">
+            <label
+              htmlFor="library-search"
+              className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
+              Search
+            </label>
+            <input
+              id="library-search"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by title or tag…"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="library-tag-filter"
+              className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
+              Filter by tag
+            </label>
+            <select
+              id="library-tag-filter"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-950"
+            >
+              <option value="all">All concepts</option>
+              <option value="untagged">Untagged</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -102,7 +142,9 @@ export function LibraryBrowser({
         </div>
       ) : visibleCount === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-500 dark:border-zinc-700">
-          No concepts match this tag filter.
+          {hasActiveFilters
+            ? "No concepts match your search or tag filter."
+            : "No concepts match this filter."}
         </div>
       ) : (
         <div className="space-y-10">
